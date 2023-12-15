@@ -1,6 +1,9 @@
 package utils
 
 import (
+	"crypto/aes"
+	"crypto/cipher"
+	"encoding/base64"
 	"fmt"
 	"io/ioutil"
 	"net"
@@ -240,4 +243,52 @@ func CreateFile(fileName string) {
 	}
 	// 关流(不关流会长时间占用内存)
 	defer file.Close()
+}
+
+// 解密数据
+func Decrypt(key, str string) (int64, error) {
+	// 解码Base64字符串
+	ciphertext, err := base64.StdEncoding.DecodeString(str)
+	if err != nil {
+		return 0, err
+	}
+
+	// 创建解密器
+	block, err := aes.NewCipher([]byte(key))
+	if err != nil {
+		return 0, err
+	}
+
+	// 解密数据
+	iv := ciphertext[:aes.BlockSize]
+	ciphertext = ciphertext[aes.BlockSize:]
+	mode := cipher.NewCBCDecrypter(block, iv)
+	plaintext := make([]byte, len(ciphertext))
+	mode.CryptBlocks(plaintext, ciphertext)
+
+	// 去掉填充字节
+	unpadded, err := unpad(plaintext)
+	if err != nil {
+		return 0, err
+	}
+
+	// 解析时间戳
+	var timestamp uint64
+	for i := 0; i < 8; i++ {
+		timestamp |= uint64(unpadded[i]) << (56 - 8*i)
+	}
+
+	// 返回时间戳
+	return int64(timestamp), nil
+}
+
+// 去掉填充字节
+func unpad(data []byte) ([]byte, error) {
+	length := len(data)
+	unpadByte := data[length-1]
+	unpadLen := int(unpadByte)
+	if unpadLen > length {
+		return nil, fmt.Errorf("invalid padding length: %d", unpadLen)
+	}
+	return data[:length-unpadLen], nil
 }
