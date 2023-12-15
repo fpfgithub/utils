@@ -14,10 +14,6 @@ import (
 	"time"
 )
 
-func Add(a, b int) int {
-	return a + b
-}
-
 func GetContent(filePath string) string {
 	// 打开文件
 	file, err := os.Open(filePath)
