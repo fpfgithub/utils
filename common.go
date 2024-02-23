@@ -4,15 +4,22 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"encoding/base64"
+	"encoding/json"
+	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
 	"time"
 )
+
+type WorldTime struct {
+	Unixtime int64 `json:"unixtime"`
+}
 
 func GetContent(filePath string) string {
 	// 打开文件
@@ -24,7 +31,7 @@ func GetContent(filePath string) string {
 	defer file.Close()
 
 	// 读取文件内容
-	content, err := ioutil.ReadAll(file)
+	content, err := io.ReadAll(file)
 	if err != nil {
 		// logger.Println("读取文件失败:", err)
 		return ""
@@ -287,4 +294,31 @@ func unpad(data []byte) ([]byte, error) {
 		return nil, fmt.Errorf("invalid padding length: %d", unpadLen)
 	}
 	return data[:length-unpadLen], nil
+}
+
+// 检查本地时间是否被修改
+func checkTimeDifference() error {
+	// 获取本地时间的Unix时间戳
+	localTimeUnix := time.Now().Unix()
+	// 获取网络时间
+	resp, err := http.Get("http://worldtimeapi.org/api/timezone/Etc/UTC")
+	if err != nil {
+		return errors.New("检测到网络异常，请检查网络连接是否正常！")
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+	var wt WorldTime
+	err = json.Unmarshal(body, &wt)
+	if err != nil {
+		return err
+	}
+	// 检查两者的差值 主要防止本地时间被修改 改小无法正确检测过期时间
+	// 当世界世界时间大于本地时间超过30分钟时，认为本地时间被修改
+	if wt.Unixtime-localTimeUnix > 1800 {
+		return errors.New("检测到异常网络，请检查网络连接是否正常！")
+	}
+	return nil
 }
