@@ -297,7 +297,7 @@ func unpad(data []byte) ([]byte, error) {
 }
 
 // 检查本地时间是否被修改
-func checkTimeDifference() error {
+func CheckTimeDifference() error {
 	// 获取本地时间的Unix时间戳
 	localTimeUnix := time.Now().Unix()
 	// 获取网络时间
