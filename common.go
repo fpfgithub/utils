@@ -3,7 +3,9 @@ package utils
 import (
 	"crypto/aes"
 	"crypto/cipher"
+	"crypto/md5"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -14,6 +16,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -321,4 +325,65 @@ func CheckTimeDifference() error {
 		return errors.New("检测到异常网络，请检查网络连接是否正常！")
 	}
 	return nil
+}
+
+func getMacAddr() ([]string, error) {
+	netInterfaces, err := net.Interfaces()
+	if err != nil {
+		return nil, err
+	}
+	macAddrMap := make(map[string]bool)
+	var macAddrStrSlice []string
+	for _, netInterface := range netInterfaces {
+		macAddrStr := netInterface.HardwareAddr.String()
+		if len(macAddrStr) == 0 {
+			continue
+		}
+		if _, exist := macAddrMap[macAddrStr]; !exist {
+			macAddrMap[macAddrStr] = true
+			macAddrStrSlice = append(macAddrStrSlice, macAddrStr)
+		}
+	}
+	return macAddrStrSlice, nil
+}
+
+func getOSVersion() (string, error) {
+	var cmd *exec.Cmd
+	if runtime.GOOS == "windows" {
+		// 对于windows，你也许可以调用一些类似 `wmic os get caption` 的命令来获取版本信息
+		cmd = exec.Command("wmic", "os", "get", "caption")
+	} else {
+		// 我们假设其他所有系统都支持 `uname -a` 命令，实际可能需要更复杂的逻辑来处理不同的Unix系统
+		cmd = exec.Command("uname", "-a")
+	}
+	// 执行命令，并获取输出
+	out, err := cmd.Output()
+	if err != nil {
+		return "", err
+	}
+	// 返回去除尾部空格的结果
+	return strings.TrimSpace(string(out)), nil
+}
+
+func GenerateDeviceID() (string, error) {
+	macAddrSlice, err := getMacAddr()
+	if err != nil {
+		macAddrSlice = nil
+	}
+	osVersion, err := getOSVersion()
+	if err != nil {
+		osVersion = ""
+	}
+	deviceInfo := runtime.GOOS +
+		runtime.GOARCH +
+		strconv.Itoa(runtime.NumCPU())
+	if len(macAddrSlice) > 0 {
+		deviceInfo = strings.Join(macAddrSlice, "") + deviceInfo
+	}
+	if len(osVersion) > 0 {
+		deviceInfo += osVersion
+	}
+	hasher := md5.New()
+	hasher.Write([]byte(deviceInfo))
+	return hex.EncodeToString(hasher.Sum(nil)), nil
 }
