@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"bufio"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/md5"
@@ -96,12 +97,25 @@ func GenerateBatFile(wdPath, port, dirName string) error {
 	}
 	defer f.Close()
 
-	// 写入文件内容
-	content := fmt.Sprintf("@echo off\necho;chrome start now......\nstart chrome.exe --remote-debugging-port=%s --user-data-dir=\"%s\"\necho;chrome start ok!\npause\n", port, dirName)
-	_, err = f.WriteString(content)
+	// 创建带缓冲的写入器，并确保使用CRLF换行符
+	writer := bufio.NewWriter(f)
+
+	// 写入文件内容，确保换行符为CRLF
+	content := fmt.Sprintf(
+		"@echo off\r\n"+
+			"echo;chrome start now......\r\n"+
+			"start chrome.exe --remote-debugging-port=%s --user-data-dir=\"%s\"\r\n"+
+			"echo;chrome start ok!\r\n"+
+			"pause\r\n",
+		port, dirName)
+
+	_, err = writer.WriteString(content)
 	if err != nil {
 		return err
 	}
+
+	// 确保数据写入文件
+	writer.Flush()
 
 	return nil
 }
