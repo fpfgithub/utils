@@ -7,7 +7,6 @@ import (
 	"crypto/md5"
 	"encoding/base64"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -318,26 +317,31 @@ func unpad(data []byte) ([]byte, error) {
 func CheckTimeDifference() error {
 	// 获取本地时间的Unix时间戳
 	localTimeUnix := time.Now().Unix()
-	// 获取网络时间
-	resp, err := http.Get("http://worldtimeapi.org/api/timezone/Etc/UTC")
+
+	// 获取百度的时间
+	resp, err := http.Get("https://www.baidu.com")
 	if err != nil {
 		return errors.New("检测到网络异常，请检查网络连接是否正常！")
 	}
 	defer resp.Body.Close()
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return err
+
+	// 读取百度返回的响应头中的Date字段
+	dateHeader := resp.Header.Get("Date")
+	if dateHeader == "" {
+		return errors.New("无法获取网络时间，请检查网络连接是否正常！")
 	}
-	var wt WorldTime
-	err = json.Unmarshal(body, &wt)
+
+	// 解析Date字段
+	networkTime, err := time.Parse(time.RFC1123, strings.TrimSpace(dateHeader))
 	if err != nil {
-		return err
+		return errors.New("网络时间解析失败，请检查网络连接是否正常！")
 	}
-	// 检查两者的差值 主要防止本地时间被修改 改小无法正确检测过期时间
-	// 当世界世界时间大于本地时间超过30分钟时，认为本地时间被修改
-	if wt.Unixtime-localTimeUnix > 1800 {
+
+	// 检查两者的差值，主要防止本地时间被修改
+	if networkTime.Unix()-localTimeUnix > 1800 {
 		return errors.New("检测到异常网络，请检查网络连接是否正常！")
 	}
+
 	return nil
 }
 
